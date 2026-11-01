@@ -1,0 +1,176 @@
+// Highlighting test cases, checked against VS Code (TextMate) and Vim.
+// Annotation comments mark columns of the closest source line above:
+// `^` marks a column, `<-` marks column 0 (one char per `-`). The word after
+// the marks is a class from syntax.yaml, or `none` for no highlighting.
+
+import "lib/common.tid" as common;
+// <------ keyword_declaration
+//     ^^^^^^^^^^^^^^^^ string
+//                      ^^ keyword_declaration
+//                         ^^^^^^ name_variable
+//                               ^ terminator
+keypair alice = seed("alice\n");
+// <------- keyword_declaration
+//      ^^^^^ name_variable
+//            ^ operator_assignment
+//              ^^^^ builtin
+//                   ^^^^^^ string
+//                         ^^ escape
+source upstream = rpc("https://api.mainnet-beta.solana.com"); // TODO pin a slot
+// <------ keyword_declaration
+//     ^^^^^^^^ name_variable
+//                ^^^ builtin
+//                     ^^^^^^^^^^^ string
+//                                                            ^^^ comment_line
+//                                                               ^^^^ todo
+//                                                                    ^^^^^^^^^^ comment_line
+let bad = "oops \q";
+//              ^^ invalid_escape
+//         ^^^^ string
+/* block comment
+// <---------------- comment_block
+   spanning lines */ let after = 1;
+// ^^^^^^^^^^^^^^^^^ comment_block
+//                   ^^^ keyword_declaration
+//                       ^^^^^ name_variable
+//                               ^ integer
+schema Note using borsh {
+// <------ keyword_declaration
+//     ^^^^ name_type
+//          ^^^^^ keyword_contextual
+//                ^^^^^ none
+  memo: Option<string>;
+//^^^^ none
+//    ^ punctuation
+//      ^^^^^^ type
+//             ^^^^^^ type
+}
+fn sol_amount(n: int) -> int {
+// <-- keyword_declaration
+// ^^^^^^^^^^ name_function
+//            ^ none
+//               ^^^ type
+//                    ^^ operator_arrow
+//                       ^^^ type
+  return n * 1 SOL;
+//^^^^^^ keyword_flow
+//         ^ operator_arithmetic
+//           ^ integer
+//             ^^^ unit
+}
+network local_defi {
+// <------- keyword_section
+//      ^^^^^^^^^^ name_section
+  options { slots_per_epoch = 128; confirm_timeout = 1.5 s; }
+//^^^^^^^ keyword_section
+//          ^^^^^^^^^^^^^^^ property
+//                            ^^^ integer
+//                                 ^^^^^^^^^^^^^^^ property
+//                                                   ^^^ float
+//                                                       ^ unit
+  validator primary { rpc_port = 8899; }
+//^^^^^^^^^ keyword_section
+//          ^^^^^^^ name_section
+//                    ^^^^^^^^ property
+  genesis {
+//^^^^^^^ keyword_section
+    account alice.pubkey { lamports = 10 SOL; owner = system_program(); }
+//  ^^^^^^^ keyword_state
+//          ^^^^^ none
+//               ^ accessor
+//                ^^^^^^ property
+//                         ^^^^^^^^ property
+//                                       ^^^ unit
+//                                            ^^^^^ property
+//                                                    ^^^^^^^^^^^^^^ builtin
+    mint usd.pubkey { mint = usd.pubkey; token_program = token_program(); }
+//  ^^^^ keyword_state
+//                    ^^^^ property
+//                                       ^^^^^^^^^^^^^ property
+//                                                       ^^^^^^^^^^^^^ builtin
+    program counter { id = counter.pubkey; }
+//  ^^^^^^^ keyword_state
+//          ^^^^^^^ name_type
+//                    ^^ property
+    clone program pubkey("Prog111") from upstream at slot 300000000;
+//  ^^^^^ keyword_state
+//        ^^^^^^^ keyword_state
+//                ^^^^^^ builtin
+//                                  ^^^^ keyword_contextual
+//                                       ^^^^^^^^ none
+//                                                ^^ keyword_contextual
+//                                                   ^^^^ keyword_contextual
+//                                                        ^^^^^^^^^ integer
+    feature pubkey("F1") = enabled;
+//  ^^^^^^^ keyword_state
+//                         ^^^^^^^ constant
+    for i in 0..3 { account seed("f" + str(i)).pubkey { lamports = 1 SOL; } }
+//  ^^^ keyword_repeat
+//      ^ name_variable
+//        ^^ keyword_repeat
+//           ^ integer
+//            ^^ operator_range
+//              ^ integer
+//                                   ^ operator_arithmetic
+//                                     ^^^ builtin
+    if total >= 2 && !done { break; } else { continue; }
+//  ^^ keyword_conditional
+//     ^^^^^ none
+//           ^^ operator_comparison
+//                ^^ operator_logical
+//                   ^ operator_logical
+//                           ^^^^^ keyword_flow
+//                                    ^^^^ keyword_conditional
+//                                           ^^^^^^^^ keyword_flow
+    while total == 3 { total -= 1; }
+//  ^^^^^ keyword_repeat
+//        ^^^^^ none
+//              ^^ operator_comparison
+//                     ^^^^^ property
+//                           ^^ operator_assignment
+  }
+  bootstrap { airdrop alice.pubkey amount 5 SOL; snapshot "ready"; }
+//^^^^^^^^^ keyword_section
+//            ^^^^^^^ keyword_action
+//                                 ^^^^^^ keyword_contextual
+//                                        ^ integer
+//                                               ^^^^^^^^ keyword_action
+//                                                        ^^^^^^^ string
+  scenario transfer {
+//^^^^^^^^ keyword_section
+//         ^^^^^^^^ name_section
+    transaction as tx { fee_payer = alice.pubkey; }
+//  ^^^^^^^^^^^ keyword_action
+//              ^^ keyword_declaration
+//                 ^^ name_variable
+//                      ^^^^^^^^^ property
+    warp by slots 100;
+//  ^^^^ keyword_action
+//       ^^ keyword_contextual
+//          ^^^^^ keyword_contextual
+//                ^^^ integer
+    let total: u64 = helper(2) + 0;
+//      ^^^^^ name_variable
+//             ^^^ type
+//                   ^^^^^^ function_call
+//                          ^ integer
+    total += 1;
+//  ^^^^^ property
+//        ^^ operator_assignment
+    assert tx.success == true, "transfer failed";
+//  ^^^^^^ keyword_action
+//         ^^ none
+//            ^^^^^^^ property
+//                    ^^ operator_comparison
+//                       ^^^^ boolean
+//                           ^ punctuation
+    assert balance(alice.pubkey) != null;
+//         ^^^^^^^ builtin
+//                               ^^ operator_comparison
+//                                  ^^^^ constant
+    let view = { state: state };
+//      ^^^^ name_variable
+//               ^^^^^ none
+//                      ^^^^^ none
+  }
+}

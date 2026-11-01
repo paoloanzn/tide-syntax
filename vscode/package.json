@@ -1,0 +1,35 @@
+{
+  "name": "tide-syntax",
+  "displayName": "Tide Language Support",
+  "description": "Syntax highlighting for Tide (.tid), the deterministic local Solana network language.",
+  "version": "0.1.0",
+  "publisher": "paoloanzn",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "tide",
+        "aliases": [
+          "Tide",
+          "tide"
+        ],
+        "extensions": [
+          ".tid"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "tide",
+        "scopeName": "source.tide",
+        "path": "./syntaxes/tide.tmLanguage.json"
+      }
+    ]
+  }
+}

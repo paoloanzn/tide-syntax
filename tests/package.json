@@ -1,0 +1,9 @@
+{
+  "name": "tide-syntax-tests",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.2"
+  }
+}

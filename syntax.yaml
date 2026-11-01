@@ -1,0 +1,174 @@
+# Tide syntax-highlighting specification: the single source of truth.
+#
+# `generate.py` turns this file into the VS Code extension (TextMate grammar,
+# language configuration, manifest) and the Vim/Neovim runtime files. Never
+# edit generated files by hand; edit this file and run `python3 generate.py`.
+#
+# Word lists mirror the reference implementation (tide/src/parser.cpp for
+# keywords, tide/src/sema.cpp for builtins and types) and lang-design.md.
+
+language:
+  id: tide
+  name: Tide
+  scope: source.tide
+  extensions: [tid]
+
+# VS Code extension manifest metadata.
+package:
+  name: tide-syntax
+  display_name: Tide Language Support
+  description: Syntax highlighting for Tide (.tid), the deterministic local Solana network language.
+  version: 0.1.0
+  publisher: paoloanzn
+  vscode_engine: ^1.90.0
+
+# Highlight classes. Each class is one semantic category, rendered as a
+# TextMate scope in VS Code and linked to a standard highlight group in Vim
+# (`vim: null` means "leave unhighlighted in Vim").
+classes:
+  comment_line:        { scope: comment.line.double-slash,        vim: Comment }
+  comment_block:       { scope: comment.block,                    vim: Comment }
+  todo:                { scope: keyword.other.todo,               vim: Todo }
+  string:              { scope: string.quoted.double,             vim: String }
+  escape:              { scope: constant.character.escape,        vim: SpecialChar }
+  invalid_escape:      { scope: invalid.illegal.escape,           vim: Error }
+  integer:             { scope: constant.numeric.integer,         vim: Number }
+  float:               { scope: constant.numeric.float,           vim: Float }
+  unit:                { scope: keyword.other.unit,               vim: Special }
+  keyword_declaration: { scope: storage.type,                     vim: Keyword }
+  keyword_section:     { scope: keyword.other.section,            vim: Structure }
+  keyword_conditional: { scope: keyword.control.conditional,      vim: Conditional }
+  keyword_repeat:      { scope: keyword.control.loop,             vim: Repeat }
+  keyword_flow:        { scope: keyword.control.flow,             vim: Statement }
+  keyword_action:      { scope: keyword.other.action,             vim: Statement }
+  keyword_state:       { scope: storage.type.state,               vim: StorageClass }
+  keyword_contextual:  { scope: keyword.other.contextual,         vim: Keyword }
+  boolean:             { scope: constant.language.boolean,        vim: Boolean }
+  constant:            { scope: constant.language,                vim: Constant }
+  type:                { scope: support.type,                     vim: Type }
+  builtin:             { scope: support.function.builtin,         vim: Function }
+  function_call:       { scope: entity.name.function.call,        vim: Function }
+  name_variable:       { scope: variable.other.declaration,       vim: Identifier }
+  name_function:       { scope: entity.name.function,             vim: Function }
+  name_type:           { scope: entity.name.type,                 vim: Typedef }
+  name_section:        { scope: entity.name.namespace,            vim: Identifier }
+  property:            { scope: variable.other.property,          vim: Identifier }
+  operator_range:      { scope: keyword.operator.range,           vim: Operator }
+  operator_arrow:      { scope: keyword.operator.arrow,           vim: Operator }
+  operator_comparison: { scope: keyword.operator.comparison,      vim: Operator }
+  operator_logical:    { scope: keyword.operator.logical,         vim: Operator }
+  operator_assignment: { scope: keyword.operator.assignment,      vim: Operator }
+  operator_arithmetic: { scope: keyword.operator.arithmetic,      vim: Operator }
+  punctuation:         { scope: punctuation.separator,            vim: null }
+  terminator:          { scope: punctuation.terminator.statement, vim: null }
+  accessor:            { scope: punctuation.accessor,             vim: null }
+
+identifier: '[A-Za-z_][A-Za-z0-9_]*'
+
+comments:
+  line: { start: "//", class: comment_line }
+  block: { start: "/*", end: "*/", class: comment_block }   # does not nest
+  todo: { words: [TODO, FIXME, XXX, NOTE], class: todo }
+
+string:
+  delimiter: '"'
+  class: string
+  multiline: false
+  # JSON-style escapes: \" \\ \/ \b \f \n \r \t and \uXXXX.
+  escapes: { chars: '"\/bfnrt', unicode_hex_digits: 4, class: escape, invalid_class: invalid_escape }
+
+numbers:
+  integer: { class: integer }        # [0-9]+
+  float: { class: float }            # [0-9]+\.[0-9]+
+  units: { words: [SOL, lamports, ms, s, slots], class: unit }   # optional suffix
+
+brackets: [["{", "}"], ["[", "]"], ["(", ")"]]
+
+# A keyword followed by the name it introduces. `guard_expression` skips the
+# name when it is actually an expression (followed by `(` or `.`), as in
+# `clone program pubkey("...") from upstream;`.
+declarations:
+  - { keyword: let,       class: name_variable }
+  - { keyword: keypair,   class: name_variable }
+  - { keyword: source,    class: name_variable }
+  - { keyword: as,        class: name_variable }
+  - { keyword: for,       class: name_variable }
+  - { keyword: fn,        class: name_function, guard_expression: false }
+  - { keyword: schema,    class: name_type }
+  - { keyword: program,   class: name_type, guard_expression: true }
+  - { keyword: sysvar,    class: name_type }
+  - { keyword: extension, class: name_type }
+  - { keyword: network,   class: name_section }
+  - { keyword: validator, class: name_section }
+  - { keyword: scenario,  class: name_section }
+
+# An identifier directly before an assignment operator: record keys, entity
+# fields and lvalues. Record keys may be reserved words (`mint = usd.pubkey;`),
+# so this outranks keywords.
+fields: { class: property }
+
+# An identifier after `.`: `alice.pubkey`, `tx.success`.
+members: { class: property, accessor_class: accessor }
+
+builtins:
+  class: builtin   # only when called: `token_program()` vs `token_program = ...`
+  words: [
+    seed, keypair_file, pubkey, pda, pda_bump, ata,
+    system_program, token_program, token_2022_program, associated_token_program,
+    bpf_loader, bpf_loader_deprecated, bpf_upgradeable_loader, loader_v4,
+    memo_program, compute_budget_program, address_lookup_table_program,
+    hex, base64, base58, utf8, sha256, file,
+    u8, u16_le, u32_le, u64_le, i64_le,
+    borsh, anchor, decode, len, str, print, rent_exempt, rpc,
+    readonly, writable, signer, sol,
+    system_transfer, spl_transfer, spl_transfer_checked, spl_mint_to, memo,
+    balance, token_balance, account_info, exists, slot, epoch,
+  ]
+
+# Any other identifier followed by `(`.
+calls: { class: function_call }
+
+# Ordered keyword groups. Reserved and contextual keywords from the parser.
+keywords:
+  - class: keyword_declaration
+    words: [import, as, source, keypair, let, schema, fn]
+  - class: keyword_section
+    words: [network, options, validator, genesis, bootstrap, scenario]
+  - class: keyword_conditional
+    words: [if, else]
+  - class: keyword_repeat
+    words: [for, in, while]
+  - class: keyword_flow
+    words: [break, continue, return]
+  - class: keyword_action
+    words: [transaction, instruction, invoke, deploy, airdrop, warp, snapshot, restore, assert, await]
+  - class: keyword_state
+    words: [account, program, mint, token_account, associated_token_account, lookup_table,
+            sysvar, feature, fork, clone, delete, extension]
+  - class: keyword_contextual
+    words: [using, from, with, at, to, by, slot, slots, epoch, time, amount]
+  - class: boolean
+    words: ["true", "false"]
+  - class: constant
+    words: ["null", enabled, disabled]
+
+types:
+  class: type
+  # A type word right after this symbol is always a type, even before `=`
+  # (`let total: u64 = 0;`), so annotations outrank fields.
+  annotation_prefix: ":"
+  words: [int, u8, u16, u32, u64, u128, i8, i16, i32, i64, i128,
+          bool, float, f32, f64, string, bytes, pubkey, keypair, source,
+          duration, range, account_meta, Option]
+
+operators:
+  - { class: operator_range,      symbols: ["..=", ".."] }
+  - { class: operator_arrow,      symbols: ["->"] }
+  - { class: operator_comparison, symbols: ["==", "!=", "<=", ">=", "<", ">"] }
+  - { class: operator_logical,    symbols: ["&&", "||", "!"] }
+  - { class: operator_assignment, symbols: ["+=", "-=", "*=", "/=", "%=", "="] }
+  - { class: operator_arithmetic, symbols: ["+", "-", "*", "/", "%"] }
+
+punctuation:
+  - { class: terminator,  symbols: [";"] }
+  - { class: punctuation, symbols: [",", ":"] }
