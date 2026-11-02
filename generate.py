@@ -238,8 +238,14 @@ def package_json(spec):
         "description": pkg["description"],
         "version": pkg["version"],
         "publisher": pkg["publisher"],
+        "license": pkg["license"],
+        "repository": {"type": "git", "url": pkg["repository"] + ".git"},
+        "homepage": pkg["repository"] + "#readme",
+        "bugs": {"url": pkg["repository"] + "/issues"},
+        "keywords": pkg["keywords"],
         "engines": {"vscode": pkg["vscode_engine"]},
         "categories": ["Programming Languages"],
+        "files": ["LICENSE", "language-configuration.json", "syntaxes/"],
         "contributes": {
             "languages": [{
                 "id": lang["id"],

@@ -16,10 +16,13 @@ language:
 # VS Code extension manifest metadata.
 package:
   name: tide-syntax
-  display_name: Tide Language Support
-  description: Syntax highlighting for Tide (.tid), the deterministic local Solana network language.
+  display_name: Tide Syntax
+  description: Syntax highlighting for the Tide language (.tid files).
   version: 0.1.0
   publisher: paoloanzn
+  license: Apache-2.0
+  repository: https://github.com/paoloanzn/tide-syntax
+  keywords: [tide, tid, syntax, highlighting]
   vscode_engine: ^1.90.0
 
 # Highlight classes. Each class is one semantic category, rendered as a
