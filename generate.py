@@ -8,12 +8,14 @@ Outputs:
   vim/ftdetect/tide.vim                  filetype detection
   vim/ftplugin/tide.vim                  comment settings
   vim/syntax/tide.vim                    syntax definition
+  emacs/tide-lang-mode.el                major mode (highlighting, indentation, compile)
 
-Both grammars are emitted from one ordered list of rules (`rules()`), highest
+All grammars are emitted from one ordered list of rules (`rules()`), highest
 priority first. The two engines resolve ties at the same start column in
 opposite ways: TextMate tries patterns in list order and the first match wins,
 Vim lets the item defined last win. So the TextMate grammar is emitted in rule
-order and the Vim syntax file in reverse.
+order and the Vim syntax file in reverse. Emacs follows TextMate's rule (see
+the Emacs section).
 
 Usage: python3 generate.py [--check]
   --check  exit 1 if any generated file is missing or out of date
@@ -430,6 +432,366 @@ def vim_ftplugin(spec):
     ])
 
 
+# ------------------------------------------------------------------- Emacs --
+#
+# Font-lock normally applies each keyword to the whole region in turn, which
+# resolves overlaps differently from TextMate. Instead every rule becomes one
+# alternative of a single regexp: Emacs' backtracking matcher takes the
+# leftmost match and, at the same position, the first alternative, which is
+# exactly TextMate's rule. Lookaheads, which Emacs lacks, are matched outside
+# the token's group and the matcher resumes at the end of the token. Comments
+# and strings come from the syntax table; the matcher only steps over them.
+
+EMACS_MAGIC = set(".*+?[^$\\")
+
+
+def emacs_escape(text):
+    return "".join("\\" + c if c in EMACS_MAGIC else c for c in text)
+
+
+def elisp_string(text):
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n").replace("\t", "\\t")
+    return '"' + escaped + '"'
+
+
+def emacs_tokenizer(spec):
+    """Return (regexp, token_groups, literal_groups, [(group, class)])."""
+    ident = spec["identifier"]
+    ws = "[ \t]"
+    counter = iter(range(1, 1000))
+    alts, tokens, literals, faces = [], [], [], []
+
+    def group(body, cls=None):
+        n = next(counter)
+        if cls:
+            faces.append((n, cls))
+        return n, rf"\(?{n}:{body}\)"
+
+    def words_re(words):
+        return r"\b\(?:" + r"\|".join(emacs_escape(w) for w in by_length(words)) + r"\)\b"
+
+    assign_re = r"\|".join(emacs_escape(s) for s in by_length(assignment_symbols(spec)))
+    units = spec["numbers"]["units"]
+    for rule in rules(spec):
+        kind = rule["kind"]
+        token_n = next(counter)
+        lookahead = ""
+        if kind in ("block_comment", "line_comment", "string"):
+            start = spec["string"]["delimiter"] if kind == "string" else spec["comments"][kind.split("_")[0]]["start"]
+            body = emacs_escape(start)
+            literals.append(token_n)
+        elif kind == "type_annotation":
+            t = spec["types"]
+            prefix = group(emacs_escape(t["annotation_prefix"]), symbol_class(spec, t["annotation_prefix"]))[1]
+            body = prefix + ws + "*" + group(words_re(t["words"]), t["class"])[1]
+        elif kind == "field":
+            body = group(rf"\b{ident}\b", spec["fields"]["class"])[1]
+            lookahead = rf"{ws}*\(?:{assign_re}\)\(?:[^=]\|$\)"
+        elif kind == "member":
+            m = spec["members"]
+            body = group(r"\.", m["accessor_class"])[1] + group(rf"{ident}\b", m["class"])[1]
+        elif kind == "declaration":
+            body = (group(words_re([rule["keyword"]]), keyword_class(spec, rule["keyword"]))[1]
+                    + ws + "+" + group(rf"{ident}\b", rule["class"])[1])
+            if rule.get("guard_expression", True):
+                lookahead = rf"{ws}*\(?:[^ \t(.]\|$\)"
+        elif kind == "number":
+            num = r"[0-9]+\.[0-9]+" if rule["which"] == "float" else "[0-9]+"
+            body = (r"\b" + group(num, spec["numbers"][rule["which"]]["class"])[1]
+                    + rf"\(?:{ws}*" + group(words_re(units["words"])[2:], units["class"])[1] + r"\)?")
+        elif kind == "words":
+            body = group(words_re(rule["words"]), rule["class"])[1]
+            if rule["call"]:
+                lookahead = ws + "*("
+        elif kind == "call":
+            body = group(rf"\b{ident}", spec["calls"]["class"])[1]
+            lookahead = ws + "*("
+        elif kind == "symbols":
+            body = group(r"\|".join(emacs_escape(s) for s in rule["symbols"]), rule["class"])[1]
+        else:
+            raise AssertionError(kind)
+        tokens.append(token_n)
+        alts.append(rf"\(?{token_n}:{body}\){lookahead}")
+    faces = [(n, cls) for n, cls in faces if spec["classes"][cls]["emacs"]]
+    return r"\|".join(alts), tokens, literals, faces
+
+
+def emacs_syntax_entries(spec):
+    """Syntax-table entries: C-style comments, strings, brackets, operators."""
+    c = spec["comments"]
+    if (c["line"]["start"], c["block"]["start"], c["block"]["end"]) != ("//", "/*", "*/"):
+        sys.exit("syntax.yaml: the Emacs syntax table only supports // and /* */ comments")
+    d = spec["string"]["delimiter"]
+    entries = [("_", "w", "identifiers are words, so \\b matches TextMate's"),
+               ("/", ". 124b", "// line comments (style b), /* */ block comments"),
+               ("*", ". 23", None),
+               ("\n", "> b", None),
+               (d, '"', None),
+               ("\\", "\\", None)]
+    for o, cl in spec["brackets"]:
+        entries += [(o, f"({cl}", None), (cl, f"){o}", None)]
+    taken = {e[0] for e in entries}
+    for ch in sorted({ch for g in spec["operators"] + spec["punctuation"] for s in g["symbols"] for ch in s}):
+        if ch not in taken:
+            entries.append((ch, ".", None))
+    return entries
+
+
+def elisp_char(ch):
+    return {"\n": "?\\n", "\\": "?\\\\", '"': '?\\"', "(": "?\\(", ")": "?\\)", "[": "?\\[", "]": "?\\]",
+            ";": "?\\;"}.get(ch, "?" + ch)
+
+
+def emacs_mode(spec):
+    e, pkg, lang = spec["emacs"], spec["package"], spec["language"]
+    p = e["prefix"]
+    face = lambda cls: spec["classes"][cls]["emacs"]
+    regexp, tokens, literals, faces = emacs_tokenizer(spec)
+    esc, todo = spec["string"]["escapes"], spec["comments"]["todo"]
+    # Inside Emacs brackets a backslash is literal: `[...\]` contains it.
+    escape_re = (r"\(?1:\\\(?:[" + esc["chars"].replace("\\", "") + "\\]"
+                 + (rf"\|u[0-9A-Fa-f]\{{{esc['unicode_hex_digits']}\}}" if esc.get("unicode_hex_digits") else "")
+                 + r"\)\)\|\(?2:\\.\)")
+    todo_re = r"\b\(?:" + r"\|".join(emacs_escape(w) for w in todo["words"]) + r"\)\b"
+    exts = r"\|".join(emacs_escape(x) for x in lang["extensions"])
+    auto_mode = rf"\.\(?:{exts}\)\'" if len(lang["extensions"]) > 1 else rf"\.{exts}\'"
+    syntax_lines = []
+    for ch, syn, comment in emacs_syntax_entries(spec):
+        if comment:
+            syntax_lines.append(f"    ;; {comment[0].upper() + comment[1:]}.")
+        syntax_lines.append(f"    (modify-syntax-entry {elisp_char(ch)} {elisp_string(syn)} table)")
+    highlights = "\n".join(f"     ({n} '{face(cls)} nil t)" for n, cls in faces)
+    single_line = not spec["string"].get("multiline")
+    d = emacs_escape(spec["string"]["delimiter"])
+    string_end_re = rf"\({d}\)\(?:[^{d}" + "\\\n" + r"]\|\\.\)*\(" + "\n" + r"\)"
+
+    propertize = f'''
+(defun {p}--syntax-propertize (start end)
+  "End unterminated strings at the end of their line, between START and END.
+Tide strings cannot span lines, so the opening quote and the newline of
+a string that is not closed on its line become generic string fences."
+  (goto-char start)
+  (funcall
+   (syntax-propertize-rules
+    ({elisp_string(string_end_re)}
+     (1 (unless (save-excursion
+                  (save-match-data (nth 8 (syntax-ppss (match-beginning 1)))))
+          (string-to-syntax "|")))
+     (2 (and (get-text-property (match-beginning 1) 'syntax-table)
+             (string-to-syntax "|")))))
+   start end))
+''' if single_line else ""
+
+    return f''';;; {e["package"]}.el --- {e["summary"]}  -*- lexical-binding: t; -*-
+
+;; Copyright (C) 2026 The Tide Authors
+
+;; Author: {e["author"]}
+{f";; Assisted-by: {e['assisted_by']}" + chr(10) if e.get("assisted_by") else ""};; Maintainer: {e["author"]}
+;; Version: {pkg["version"]}
+;; Package-Requires: ((emacs "{e["emacs_version"]}"))
+;; Keywords: {" ".join(e["keywords"])}
+;; URL: {pkg["repository"]}
+;; SPDX-License-Identifier: {pkg["license"]}
+
+;; This file is not part of GNU Emacs.
+
+;; Licensed under the Apache License, Version 2.0 (the "License");
+;; you may not use this file except in compliance with the License.
+;; You may obtain a copy of the License at
+;;
+;;     http://www.apache.org/licenses/LICENSE-2.0
+;;
+;; Unless required by applicable law or agreed to in writing, software
+;; distributed under the License is distributed on an "AS IS" BASIS,
+;; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+;; See the License for the specific language governing permissions and
+;; limitations under the License.
+
+;;; Commentary:
+
+;; A major mode for Tide (https://github.com/paoloanzn/tide), a language
+;; for describing local Solana networks as code.  It provides syntax
+;; highlighting for `.{lang["extensions"][0]}' files, brace-based indentation and
+;; `compile' support: M-x compile runs `{e["program"]} check' on the current file,
+;; and `next-error' jumps to the reported errors, warnings and notes.
+;;
+;; The highlighting follows the same rules as the VS Code and Vim
+;; grammars in the same repository.  This file is generated by
+;; generate.py from syntax.yaml; edit those instead.
+
+;;; Code:
+
+(require 'compile)
+
+(defgroup {p} nil
+  "Major mode for the Tide language."
+  :group 'languages
+  :link '(url-link "{pkg["repository"]}"))
+
+(defcustom {p}-program "{e["program"]}"
+  "The Tide executable, used for the default `compile-command'."
+  :type 'string)
+
+(defcustom {p}-indent-offset {e["indent_offset"]}
+  "Number of columns to indent per level of braces."
+  :type 'integer
+  :safe #'integerp)
+
+;;;; Syntax
+
+(defvar {p}-mode-syntax-table
+  (let ((table (make-syntax-table)))
+{chr(10).join(syntax_lines)}
+    table)
+  "Syntax table for `{p}-mode'.")
+{propertize}
+;;;; Highlighting
+
+(defconst {p}--token-regexp
+  {elisp_string(regexp)}
+  "Every highlighting rule, one alternative each, highest priority first.")
+
+(defconst {p}--token-groups '({" ".join(map(str, tokens))})
+  "The group of `{p}--token-regexp' spanning each rule's token.")
+
+(defconst {p}--literal-groups '({" ".join(map(str, literals))})
+  "The token groups that start a comment or a string.")
+
+(defun {p}--skip-literal (start limit)
+  "Move past the comment or string around or beginning at START.
+Stop at LIMIT at the latest."
+  (let ((state (save-excursion (syntax-ppss start))))
+    (goto-char start)
+    (unless (nth 8 state)
+      (setq state (parse-partial-sexp start limit nil nil state 'syntax-table)))
+    (parse-partial-sexp (point) limit nil nil state 'syntax-table)
+    (when (<= (point) start)
+      (goto-char (min (1+ start) limit)))))
+
+(defun {p}--match-token (limit)
+  "Find the next token before LIMIT and set the match data to it.
+The leftmost match wins and earlier rules break ties, as in TextMate.
+Comments and strings are skipped: the syntax table highlights them."
+  (let ((case-fold-search nil)
+        found)
+    (while (and (not found)
+                (< (point) limit)
+                (re-search-forward {p}--token-regexp limit t))
+      (let ((start (match-beginning 0))
+            (groups {p}--token-groups))
+        (while (not (match-beginning (car groups)))
+          (setq groups (cdr groups)))
+        (if (or (memq (car groups) {p}--literal-groups)
+                (save-excursion (save-match-data (nth 8 (syntax-ppss start)))))
+            ({p}--skip-literal start limit)
+          (goto-char (match-end (car groups)))
+          (setq found t))))
+    found))
+
+(defun {p}--match-inside (regexp kind limit)
+  "Find the next REGEXP before LIMIT that is inside a string or comment.
+KIND is the index of the `syntax-ppss' element that must be non-nil:
+3 for strings, 4 for comments."
+  (let ((case-fold-search nil)
+        found)
+    (while (and (not found) (re-search-forward regexp limit t))
+      (let ((start (match-beginning 0)))
+        (setq found (save-excursion
+                      (save-match-data (nth kind (syntax-ppss start)))))))
+    found))
+
+(defun {p}--match-escape (limit)
+  "Find the next escape sequence in a string before LIMIT."
+  ({p}--match-inside {elisp_string(escape_re)} 3 limit))
+
+(defun {p}--match-todo (limit)
+  "Find the next {"/".join(todo["words"])} marker in a comment before LIMIT."
+  ({p}--match-inside {elisp_string(todo_re)} 4 limit))
+
+(defun {p}--syntactic-face (state)
+  "Return the face of the string or comment described by STATE."
+  (cond ((nth 3 state) '{face(spec["string"]["class"])})
+        ((nth 7 state) '{face(spec["comments"]["line"]["class"])})
+        (t '{face(spec["comments"]["block"]["class"])})))
+
+(defconst {p}--font-lock-keywords
+  '(({p}--match-token
+{highlights})
+    ({p}--match-escape
+     (1 '{face(esc["class"])} t t)
+     (2 '{face(esc["invalid_class"])} t t))
+    ({p}--match-todo
+     (0 '{face(todo["class"])} t)))
+  "Font-lock keywords for `{p}-mode'.")
+
+;;;; Indentation
+
+(defun {p}-indent-line ()
+  "Indent the current line by the depth of the braces around it."
+  (interactive)
+  (let* ((state (save-excursion (syntax-ppss (line-beginning-position))))
+         (indent (save-excursion
+                   (back-to-indentation)
+                   (let ((depth (car (syntax-ppss))))
+                     (when (looking-at "\\\\s)")
+                       (setq depth (1- depth)))
+                     (* {p}-indent-offset (max depth 0))))))
+    (cond ((nth 8 state) 'noindent)
+          ((> (current-column) (current-indentation))
+           (save-excursion (indent-line-to indent)))
+          (t (indent-line-to indent)))))
+
+;;;; Compilation
+
+(defconst {p}--compilation-regexp
+  (rx bol
+      (group-n 1 (not (in " \\n")) (*? nonl)) ":"
+      (group-n 2 (+ digit)) ":"
+      (group-n 3 (+ digit)) ": "
+      (or "error" (group-n 4 "warning") (group-n 5 "note")) ": ")
+  "Matches Tide diagnostics: FILE:LINE:COLUMN: SEVERITY: MESSAGE.")
+
+(add-to-list 'compilation-error-regexp-alist-alist
+             `({p} ,{p}--compilation-regexp 1 2 3 (4 . 5)))
+(add-to-list 'compilation-error-regexp-alist '{p})
+
+;;;; Mode
+
+;;;###autoload
+(define-derived-mode {p}-mode prog-mode "{lang["name"]}"
+  "Major mode for editing Tide scripts.
+
+\\\\[compile] defaults to `{e["program"]} check' on the visited file; set
+`{p}-program' if the executable is not on variable `exec-path'.  The
+command runs with NO_COLOR=1, so diagnostics stay parseable."
+  :group '{p}
+  (setq-local comment-start "{spec["comments"]["line"]["start"]} ")
+  (setq-local comment-end "")
+  (setq-local comment-start-skip "\\\\(?://+\\\\|/\\\\*+\\\\)\\\\s-*")
+  (setq-local font-lock-defaults
+              '({p}--font-lock-keywords
+                nil nil nil nil
+                (font-lock-syntactic-face-function
+                 . {p}--syntactic-face)))
+{"  (setq-local syntax-propertize-function #'" + p + "--syntax-propertize)" + chr(10) if single_line else ""}  (setq-local indent-line-function #'{p}-indent-line)
+  (setq-local electric-indent-chars (append "{{}}" electric-indent-chars))
+  (setq-local compilation-environment
+              (cons "NO_COLOR=1" compilation-environment))
+  (when buffer-file-name
+    (setq-local compile-command
+                (concat {p}-program " check "
+                        (shell-quote-argument
+                         (file-name-nondirectory buffer-file-name))))))
+
+;;;###autoload
+(add-to-list 'auto-mode-alist '({elisp_string(auto_mode)} . {p}-mode))
+
+(provide '{e["package"]})
+;;; {e["package"]}.el ends here
+'''
+
+
 # -------------------------------------------------------------------- main --
 
 def outputs(spec):
@@ -442,6 +804,7 @@ def outputs(spec):
         f"vim/ftdetect/{lang}.vim": vim_ftdetect(spec),
         f"vim/ftplugin/{lang}.vim": vim_ftplugin(spec),
         f"vim/syntax/{lang}.vim": vim_syntax(spec),
+        f"emacs/{spec['emacs']['package']}.el": emacs_mode(spec),
     }
 
 

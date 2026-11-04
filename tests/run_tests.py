@@ -6,6 +6,10 @@ from syntax.yaml is mapped to that engine's name for it:
   vscode  vscode-textmate + vscode-oniguruma (the engine VS Code uses)
   vim     vim -es, synID() per column
   nvim    nvim --headless, synID() per column
+  emacs   emacs --batch, the face of every column after font-lock
+
+The emacs backend also checks that `compilation-mode` finds the locations and
+severities in sample `tide` output (COMPILE_OUTPUT).
 
 Usage: python3 tests/run_tests.py [backend ...]   (default: all available)
 """
@@ -71,6 +75,57 @@ def dump_vim(cmd):
     return run
 
 
+def run_emacs(what, path):
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "out.json"
+        mode = ROOT / "emacs" / f"{generate.load_spec()['emacs']['package']}.el"
+        proc = subprocess.run(["emacs", "-Q", "--batch", "-l", TESTS / "dump_emacs.el", mode, what, path, out],
+                              capture_output=True, text=True, timeout=60)
+        if not out.exists():
+            raise RuntimeError(f"emacs failed:\n{proc.stdout}{proc.stderr}")
+        return json.loads(out.read_text())
+
+
+def dump_emacs(_spec):
+    return run_emacs("faces", CASES)
+
+
+# Real `tide check` / `tide up` output (NO_COLOR=1), plus a source line quoting
+# a diagnostic, which must not be taken for one.
+COMPILE_OUTPUT = """\
+/work/bad.tid:2:5: error: redeclaration of 'a'
+ 2 | let a = 2;
+   |     ^
+/work/bad.tid:1:5: note: previous declaration is here
+ 1 | let a = 1;
+   |     ^
+lib/common.tid:4:13: warning: account HWrCL2DiCckyFMw4Z4BR8fWq1QHFGecjh19DReM3Epye has 0 lamports and will not exist on chain
+ 4 |     account alice.pubkey { lamports = 0; owner = system_program(); }
+   |             ^~~~~
+/work/bad.tid:7:9: error: unknown identifier 'undefined_thing'
+ 7 | let s = "x.tid:1:2: error: not a diagnostic";
+   |         ^~~~~~~~~~~~~~~
+tide: cannot read 'missing.tid'
+2 error(s), 1 warning(s)
+"""
+COMPILE_EXPECTED = [
+    ["/work/bad.tid", 2, 5, 2],
+    ["/work/bad.tid", 1, 5, 0],
+    ["lib/common.tid", 4, 13, 1],
+    ["/work/bad.tid", 7, 9, 2],
+]
+
+
+def check_emacs_compile():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / "output.txt"
+        path.write_text(COMPILE_OUTPUT)
+        got = run_emacs("compile", path)
+    if got == COMPILE_EXPECTED:
+        return []
+    return [f"  compile: want {COMPILE_EXPECTED}", f"  compile: got  {got}"]
+
+
 def check_vscode(spec, cls, scopes):
     lang = spec["language"]["id"]
     if cls is None:
@@ -85,10 +140,19 @@ def check_vim(spec, cls, group):
     return group == generate.vim_group(spec, cls), group or "(none)"
 
 
+def check_emacs(spec, cls, face):
+    want = spec["classes"][cls]["emacs"] if cls else None
+    # Emacs draws comment starters (`//`, `/*`) with a face that inherits the comment face.
+    if face == "font-lock-comment-delimiter-face":
+        face = "font-lock-comment-face"
+    return face == (want or ""), face or "(none)"
+
+
 BACKENDS = {
     "vscode": (lambda: shutil.which("node"), dump_vscode, check_vscode),
     "vim": (lambda: shutil.which("vim"), dump_vim("vim"), check_vim),
     "nvim": (lambda: shutil.which("nvim"), dump_vim("nvim"), check_vim),
+    "emacs": (lambda: shutil.which("emacs"), dump_emacs, check_emacs),
 }
 
 
@@ -111,7 +175,7 @@ def main():
             print(f"{name}: ERROR {e}")
             failed = True
             continue
-        errors = []
+        errors = check_emacs_compile() if name == "emacs" else []
         for line, col, cls, ann in expectations:
             row = table[line]
             ok, got = check(spec, cls, row[col] if col < len(row) else None)

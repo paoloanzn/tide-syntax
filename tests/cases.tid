@@ -27,6 +27,11 @@ source upstream = rpc("https://api.mainnet-beta.solana.com"); // TODO pin a slot
 let bad = "oops \q";
 //              ^^ invalid_escape
 //         ^^^^ string
+let open = "strings end at the end of the line
+//         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ string
+let next = 2;
+// <--- keyword_declaration
+//  ^^^^ name_variable
 /* block comment
 // <---------------- comment_block
    spanning lines */ let after = 1;

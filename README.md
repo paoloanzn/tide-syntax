@@ -1,7 +1,7 @@
 # tide-syntax
 
 Syntax highlighting for [Tide](https://github.com/paoloanzn/tide) (`.tid`) in
-VS Code, Vim and Neovim.
+VS Code, Vim, Neovim and Emacs.
 
 ## Install
 
@@ -40,18 +40,51 @@ With lazy.nvim:
 { "paoloanzn/tide-syntax", config = function(p) vim.opt.rtp:append(p.dir .. "/vim") end }
 ```
 
+### Emacs
+
+`tide-lang-mode` needs Emacs 29.1 or later. Install it from this repository
+with Emacs 30's `use-package`:
+
+```elisp
+(use-package tide-lang-mode
+  :vc (:url "https://github.com/paoloanzn/tide-syntax" :lisp-dir "emacs"))
+```
+
+On Emacs 29, evaluate this once (`M-:`):
+
+```elisp
+(package-vc-install
+ '(tide-lang-mode :url "https://github.com/paoloanzn/tide-syntax" :lisp-dir "emacs"))
+```
+
+The package is also coming to [MELPA](https://melpa.org). Once it's there,
+`(use-package tide-lang-mode :ensure t)` will work.
+
+It is called `tide-lang-mode` because MELPA's `tide` package, for TypeScript,
+already owns `tide-mode`. Both can be installed at the same time.
+
+Besides highlighting and indentation, it sets up `M-x compile`. The default
+command is `tide check` on the current file, and `next-error` (`M-g n`) jumps
+to each error and warning. Set `tide-lang-program` if `tide` is not on your
+`exec-path`. Compiling sets `NO_COLOR=1`, so you need a Tide release that
+honors it. Older releases print colors on the terminal Emacs gives them, and
+Emacs can't read those error locations.
+
 ## Development
 
-The grammars for both editors are generated from `syntax.yaml`. Edit that file,
-never the generated files under `vscode/` and `vim/`, then run:
+The grammars for every editor are generated from `syntax.yaml`. Edit that
+file, never the generated files under `vscode/`, `vim/` and `emacs/`, then
+run:
 
 ```sh
 python3 generate.py                               # needs PyYAML
 (cd tests && npm install) && python3 tests/run_tests.py
 ```
 
-The tests tokenize `tests/cases.tid` with VS Code's TextMate engine, Vim and
-Neovim, and compare the result with the `// ^^^ class` annotations in the file.
+The tests tokenize `tests/cases.tid` with VS Code's TextMate engine, Vim,
+Neovim and Emacs, and compare the result with the `// ^^^ class` annotations
+in the file. The Emacs backend also checks that `compilation-mode` reads
+sample `tide` output correctly.
 
 To publish a new version of the extension, bump `version` in `syntax.yaml`,
 regenerate, then run this in `vscode/`:
@@ -59,6 +92,9 @@ regenerate, then run this in `vscode/`:
 ```sh
 npx @vscode/vsce publish && npx ovsx publish
 ```
+
+MELPA builds the Emacs package from `emacs/tide-lang-mode.el` on `main`, so
+committing the regenerated file publishes it.
 
 ## Known limitations
 

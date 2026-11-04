@@ -2,5 +2,6 @@ node_modules/
 *.vsix
 __pycache__/
 *.pyc
+*.elc
 .DS_Store
 *.swp

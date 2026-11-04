@@ -25,46 +25,59 @@ package:
   keywords: [tide, tid, syntax, highlighting]
   vscode_engine: ^1.90.0
 
+# Emacs package metadata. The package is not called `tide-mode`: MELPA's
+# `tide` package (TypeScript) already owns that name and the `tide-` prefix.
+emacs:
+  package: tide-lang-mode
+  prefix: tide-lang
+  summary: Major mode for the Tide language
+  author: Paolo Anzani <paoloanzn@gmail.com>
+  assisted_by: Claude:claude-opus-5-5   # MELPA asks for this line, see its CONTRIBUTING.org
+  emacs_version: "29.1"   # for the font-lock faces added in 29.1
+  keywords: [languages]
+  program: tide           # default `tide-lang-program`, run as `tide check FILE`
+  indent_offset: 2
+
 # Highlight classes. Each class is one semantic category, rendered as a
-# TextMate scope in VS Code and linked to a standard highlight group in Vim
-# (`vim: null` means "leave unhighlighted in Vim").
+# TextMate scope in VS Code, linked to a standard highlight group in Vim and
+# drawn with a standard face in Emacs (`null` means "leave unhighlighted").
 classes:
-  comment_line:        { scope: comment.line.double-slash,        vim: Comment }
-  comment_block:       { scope: comment.block,                    vim: Comment }
-  todo:                { scope: keyword.other.todo,               vim: Todo }
-  string:              { scope: string.quoted.double,             vim: String }
-  escape:              { scope: constant.character.escape,        vim: SpecialChar }
-  invalid_escape:      { scope: invalid.illegal.escape,           vim: Error }
-  integer:             { scope: constant.numeric.integer,         vim: Number }
-  float:               { scope: constant.numeric.float,           vim: Float }
-  unit:                { scope: keyword.other.unit,               vim: Special }
-  keyword_declaration: { scope: storage.type,                     vim: Keyword }
-  keyword_section:     { scope: keyword.other.section,            vim: Structure }
-  keyword_conditional: { scope: keyword.control.conditional,      vim: Conditional }
-  keyword_repeat:      { scope: keyword.control.loop,             vim: Repeat }
-  keyword_flow:        { scope: keyword.control.flow,             vim: Statement }
-  keyword_action:      { scope: keyword.other.action,             vim: Statement }
-  keyword_state:       { scope: storage.type.state,               vim: StorageClass }
-  keyword_contextual:  { scope: keyword.other.contextual,         vim: Keyword }
-  boolean:             { scope: constant.language.boolean,        vim: Boolean }
-  constant:            { scope: constant.language,                vim: Constant }
-  type:                { scope: support.type,                     vim: Type }
-  builtin:             { scope: support.function.builtin,         vim: Function }
-  function_call:       { scope: entity.name.function.call,        vim: Function }
-  name_variable:       { scope: variable.other.declaration,       vim: Identifier }
-  name_function:       { scope: entity.name.function,             vim: Function }
-  name_type:           { scope: entity.name.type,                 vim: Typedef }
-  name_section:        { scope: entity.name.namespace,            vim: Identifier }
-  property:            { scope: variable.other.property,          vim: Identifier }
-  operator_range:      { scope: keyword.operator.range,           vim: Operator }
-  operator_arrow:      { scope: keyword.operator.arrow,           vim: Operator }
-  operator_comparison: { scope: keyword.operator.comparison,      vim: Operator }
-  operator_logical:    { scope: keyword.operator.logical,         vim: Operator }
-  operator_assignment: { scope: keyword.operator.assignment,      vim: Operator }
-  operator_arithmetic: { scope: keyword.operator.arithmetic,      vim: Operator }
-  punctuation:         { scope: punctuation.separator,            vim: null }
-  terminator:          { scope: punctuation.terminator.statement, vim: null }
-  accessor:            { scope: punctuation.accessor,             vim: null }
+  comment_line:        { scope: comment.line.double-slash,        vim: Comment,      emacs: font-lock-comment-face }
+  comment_block:       { scope: comment.block,                    vim: Comment,      emacs: font-lock-comment-face }
+  todo:                { scope: keyword.other.todo,               vim: Todo,         emacs: font-lock-warning-face }
+  string:              { scope: string.quoted.double,             vim: String,       emacs: font-lock-string-face }
+  escape:              { scope: constant.character.escape,        vim: SpecialChar,  emacs: font-lock-escape-face }
+  invalid_escape:      { scope: invalid.illegal.escape,           vim: Error,        emacs: font-lock-warning-face }
+  integer:             { scope: constant.numeric.integer,         vim: Number,       emacs: font-lock-number-face }
+  float:               { scope: constant.numeric.float,           vim: Float,        emacs: font-lock-number-face }
+  unit:                { scope: keyword.other.unit,               vim: Special,      emacs: font-lock-constant-face }
+  keyword_declaration: { scope: storage.type,                     vim: Keyword,      emacs: font-lock-keyword-face }
+  keyword_section:     { scope: keyword.other.section,            vim: Structure,    emacs: font-lock-keyword-face }
+  keyword_conditional: { scope: keyword.control.conditional,      vim: Conditional,  emacs: font-lock-keyword-face }
+  keyword_repeat:      { scope: keyword.control.loop,             vim: Repeat,       emacs: font-lock-keyword-face }
+  keyword_flow:        { scope: keyword.control.flow,             vim: Statement,    emacs: font-lock-keyword-face }
+  keyword_action:      { scope: keyword.other.action,             vim: Statement,    emacs: font-lock-keyword-face }
+  keyword_state:       { scope: storage.type.state,               vim: StorageClass, emacs: font-lock-keyword-face }
+  keyword_contextual:  { scope: keyword.other.contextual,         vim: Keyword,      emacs: font-lock-keyword-face }
+  boolean:             { scope: constant.language.boolean,        vim: Boolean,      emacs: font-lock-constant-face }
+  constant:            { scope: constant.language,                vim: Constant,     emacs: font-lock-constant-face }
+  type:                { scope: support.type,                     vim: Type,         emacs: font-lock-type-face }
+  builtin:             { scope: support.function.builtin,         vim: Function,     emacs: font-lock-builtin-face }
+  function_call:       { scope: entity.name.function.call,        vim: Function,     emacs: font-lock-function-call-face }
+  name_variable:       { scope: variable.other.declaration,       vim: Identifier,   emacs: font-lock-variable-name-face }
+  name_function:       { scope: entity.name.function,             vim: Function,     emacs: font-lock-function-name-face }
+  name_type:           { scope: entity.name.type,                 vim: Typedef,      emacs: font-lock-type-face }
+  name_section:        { scope: entity.name.namespace,            vim: Identifier,   emacs: font-lock-variable-name-face }
+  property:            { scope: variable.other.property,          vim: Identifier,   emacs: font-lock-property-name-face }
+  operator_range:      { scope: keyword.operator.range,           vim: Operator,     emacs: font-lock-operator-face }
+  operator_arrow:      { scope: keyword.operator.arrow,           vim: Operator,     emacs: font-lock-operator-face }
+  operator_comparison: { scope: keyword.operator.comparison,      vim: Operator,     emacs: font-lock-operator-face }
+  operator_logical:    { scope: keyword.operator.logical,         vim: Operator,     emacs: font-lock-operator-face }
+  operator_assignment: { scope: keyword.operator.assignment,      vim: Operator,     emacs: font-lock-operator-face }
+  operator_arithmetic: { scope: keyword.operator.arithmetic,      vim: Operator,     emacs: font-lock-operator-face }
+  punctuation:         { scope: punctuation.separator,            vim: null,         emacs: null }
+  terminator:          { scope: punctuation.terminator.statement, vim: null,         emacs: null }
+  accessor:            { scope: punctuation.accessor,             vim: null,         emacs: null }
 
 identifier: '[A-Za-z_][A-Za-z0-9_]*'
 
