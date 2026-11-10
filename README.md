@@ -1,7 +1,7 @@
 # tide-syntax
 
 Syntax highlighting for [Tide](https://github.com/paoloanzn/tide) (`.tid`) in
-VS Code, Vim, Neovim and Emacs.
+VS Code, Vim, Neovim and Emacs, and for Tide code blocks in Obsidian.
 
 ## Install
 
@@ -17,6 +17,33 @@ code --install-extension paoloanzn.tide-syntax
 
 The extension is also on [Open VSX](https://open-vsx.org/extension/paoloanzn/tide-syntax),
 for Cursor, VSCodium and other VS Code forks.
+
+### Obsidian
+
+[Shiki Highlighter](https://github.com/mProjectsCode/obsidian-shiki-plugin)
+uses the same TextMate grammar as the VS Code extension to highlight Tide
+code blocks in Reading view, Live Preview and Source mode.
+
+1. In Obsidian, open **Settings → Community plugins → Browse**, then install
+   and enable **Shiki Highlighter**.
+2. Copy [tide.tmLanguage.json](vscode/syntaxes/tide.tmLanguage.json) into a
+   folder inside your vault, for example `syntax/tide.tmLanguage.json`.
+3. In the plugin settings, set **Custom languages folder location** to that
+   folder (`syntax` in this example).
+4. Run **Shiki Highlighter: Reload highlighter** from the command palette.
+
+Use `tide` after the opening fence in your notes:
+
+````markdown
+```tide
+keypair alice = seed("alice");
+let amount = 10 SOL;
+```
+````
+
+To update, replace the grammar file with the latest copy and reload the
+highlighter. This setup highlights code blocks in Markdown notes; it does
+not add an editor for standalone `.tid` files.
 
 ### Vim and Neovim
 

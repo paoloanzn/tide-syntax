@@ -212,7 +212,8 @@ def textmate(spec):
     return {
         "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
         "comment": HEADER,
-        "name": spec["language"]["name"],
+        # Shiki uses the grammar name as the code-fence language identifier.
+        "name": lang,
         "scopeName": spec["language"]["scope"],
         "fileTypes": spec["language"]["extensions"],
         "patterns": patterns,
